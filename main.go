@@ -6,7 +6,6 @@ import (
 	"sync/atomic"
 	"fmt"
 	"encoding/json"
-	"strings"
 	"database/sql"
 	"os"
 
@@ -45,7 +44,7 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
-	database       *database.Queries
+	db       *database.Queries
 	platform       string
 }
 
@@ -67,7 +66,7 @@ func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusForbidden, "Platform is not dev")
 		return
 	}
-	err := cfg.database.Reset(r.Context())
+	err := cfg.db.Reset(r.Context())
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't reset")
 		return
@@ -90,32 +89,6 @@ func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(body))
 }
 
-func (cfg *apiConfig) handlerChirp(w http.ResponseWriter, r *http.Request) {
-	type parameters struct {
-		Body string `json:"body"`
-	}
-	decoder := json.NewDecoder(r.Body)
-	params := parameters{}
-	err := decoder.Decode(&params)
-	if err != nil {
-		respondWithError(w, 500, "Something went wrong")
-		return
-	} else if len(params.Body) > 140 {
-		respondWithError(w, 400, "Chirp is too long")
-		return
-	}
-
-	words := strings.Split(params.Body, " ")
-	for i, word := range words {
-		lower := strings.ToLower(word)
-		if lower == "kerfuffle" || lower == "sharbert" || lower == "fornax" {
-			words[i] = "****"
-		}
-	}
-	cleanSentence := strings.Join(words, " ")
-	respondWithJSON(w, 200, map[string]string{"cleaned_body": cleanSentence})
-}
-
 func main() {
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
@@ -126,7 +99,7 @@ func main() {
 	serve := http.NewServeMux()
 	apiCfg := apiConfig{
 		fileserverHits: atomic.Int32{},
-		database:       dbQueries,
+		db:             dbQueries,
 		platform:       plat,
 	}
 
@@ -140,8 +113,10 @@ func main() {
 	serve.HandleFunc("GET /api/healthz", handlerHealthz)
 	serve.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 	serve.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
-	serve.HandleFunc("POST /api/validate_chirp", apiCfg.handlerChirp)
+	serve.HandleFunc("POST /api/chirps", apiCfg.handlerChirpsCreate)
 	serve.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
+	serve.HandleFunc("GET /api/chirps", apiCfg.handlerGetChirps)
+	serve.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerGetChirp)
 
 	err = server.ListenAndServe()
 	if err != nil {
