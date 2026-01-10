@@ -7,17 +7,21 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+
+	"github.com/BetoDev25/chirpy/internal/auth"
+	"github.com/BetoDev25/chirpy/internal/database"
 )
 
 type User struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
+	ID             uuid.UUID `json:"id"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	Email          string    `json:"email"`
 }
 
 func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
 	type params struct {
+		Password string `json:"password"`
 		Email string `json:"email"`
 	}
 
@@ -29,7 +33,16 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	user, err := cfg.db.CreateUser(r.Context(), input.Email)
+	hashedPassword, err := auth.HashPassword(input.Password)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "could not hash password")
+		return
+	}
+
+	user, err := cfg.db.CreateUser(r.Context(), database.CreateUserParams{
+		Email:          input.Email,
+		HashedPassword: hashedPassword,
+	})
 	if err != nil {
 		fmt.Println("CreateUser error:", err)
 		respondWithError(w, http.StatusInternalServerError, "Couldn't create user")

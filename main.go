@@ -117,6 +117,7 @@ func main() {
 	serve.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
 	serve.HandleFunc("GET /api/chirps", apiCfg.handlerGetChirps)
 	serve.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerGetChirp)
+	serve.HandleFunc("POST /api/login", apiCfg.handlerLogin)
 
 	err = server.ListenAndServe()
 	if err != nil {
