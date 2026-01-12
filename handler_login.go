@@ -2,17 +2,18 @@ package main
 
 import (
 	"encoding/json"
+	"database/sql"
 	"net/http"
 	"time"
 
 	"github.com/BetoDev25/chirpy/internal/auth"
+	"github.com/BetoDev25/chirpy/internal/database"
 )
 
 func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 	type params struct {
 		Password         string `json:"password"`
 		Email            string `json:"email"`
-		ExpiresInSeconds *int `json:"expires_in_seconds"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -34,27 +35,46 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusUnauthorized, "Incorrect email or password")
 		return
 	}
-	expires := 3600
-	if input.ExpiresInSeconds != nil {
-		if *input.ExpiresInSeconds > 3600 {
-			expires = 3600
-		} else {
-			expires = *input.ExpiresInSeconds
-		}
-	}
-	expiresDuration := time.Duration(expires) * time.Second
 
-	token, err := auth.MakeJWT(user.ID, cfg.jwtSecret, expiresDuration)
+	duration := time.Hour
+
+	token, err := auth.MakeJWT(user.ID, cfg.jwtSecret, duration)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't generate token")
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, User {
-			ID:        user.ID,
-			CreatedAt: user.CreatedAt,
-			UpdatedAt: user.UpdatedAt,
-			Email:     user.Email,
-			Token:     token,
+	refreshTokenString, err := auth.MakeRefreshToken()
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't generate refresh token string")
+		return
+	}
+
+	_, err = cfg.db.MakeRefreshToken(r.Context(), database.MakeRefreshTokenParams{
+		Token:     refreshTokenString,
+		UserID:    user.ID,
+		ExpiresAt: time.Now().Add(60 * 24 * time.Hour),
+		RevokedAt: sql.NullTime{Valid: false},
+	})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't save refresh token")
+		return
+	}
+
+	type response struct {
+		User
+		Token        string `json:"token"`
+		RefreshToken string `json:"refresh_token"`
+	}
+
+	respondWithJSON(w, http.StatusOK, response {
+			User: User{
+				ID:           user.ID,
+				CreatedAt:    user.CreatedAt,
+				UpdatedAt:    user.UpdatedAt,
+				Email:        user.Email,
+			},
+			Token:        token,
+			RefreshToken: refreshTokenString,
 	})
 }
