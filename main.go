@@ -44,8 +44,9 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
-	db       *database.Queries
+	db             *database.Queries
 	platform       string
+	jwtSecret      string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -93,6 +94,7 @@ func main() {
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
 	plat := os.Getenv("PLATFORM")
+	secret := os.Getenv("JWT_SECRET")
 	db, err := sql.Open("postgres", dbURL)
 	dbQueries := database.New(db)
 
@@ -101,6 +103,7 @@ func main() {
 		fileserverHits: atomic.Int32{},
 		db:             dbQueries,
 		platform:       plat,
+		jwtSecret:      secret,
 	}
 
 	server := &http.Server{
