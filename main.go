@@ -123,6 +123,8 @@ func main() {
 	serve.HandleFunc("POST /api/login", apiCfg.handlerLogin)
 	serve.HandleFunc("POST /api/refresh", apiCfg.handlerRefresh)
 	serve.HandleFunc("POST /api/revoke", apiCfg.handlerRevoke)
+	serve.HandleFunc("PUT /api/users", apiCfg.handlerUpdateUser)
+	serve.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.handlerDeleteChirp)
 
 	err = server.ListenAndServe()
 	if err != nil {
