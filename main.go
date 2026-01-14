@@ -47,6 +47,7 @@ type apiConfig struct {
 	db             *database.Queries
 	platform       string
 	jwtSecret      string
+	apiKey         string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -95,6 +96,7 @@ func main() {
 	dbURL := os.Getenv("DB_URL")
 	plat := os.Getenv("PLATFORM")
 	secret := os.Getenv("JWT_SECRET")
+	apiKey := os.Getenv("API_KEY")
 	db, err := sql.Open("postgres", dbURL)
 	dbQueries := database.New(db)
 
@@ -104,6 +106,7 @@ func main() {
 		db:             dbQueries,
 		platform:       plat,
 		jwtSecret:      secret,
+		apiKey:         apiKey,
 	}
 
 	server := &http.Server{
@@ -125,6 +128,7 @@ func main() {
 	serve.HandleFunc("POST /api/revoke", apiCfg.handlerRevoke)
 	serve.HandleFunc("PUT /api/users", apiCfg.handlerUpdateUser)
 	serve.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.handlerDeleteChirp)
+	serve.HandleFunc("POST /api/polka/webhooks", apiCfg.handlerUpgradeRed)
 
 	err = server.ListenAndServe()
 	if err != nil {
